@@ -2,13 +2,14 @@ package model;
 
 import lombok.AllArgsConstructor;
 import lombok.Getter;
+import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 @Getter
 @Setter
 @AllArgsConstructor
+@NoArgsConstructor
 public class Segment {
-    private int index;
     private Integer parentIndex;
     private Integer leftIndex;
     private Integer rightIndex;
