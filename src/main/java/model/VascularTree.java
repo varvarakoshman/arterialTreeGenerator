@@ -17,25 +17,28 @@ public class VascularTree {
     private int kTot;
     private double rSupp;
     private Map<Integer, Segment> existingSegments = new HashMap<>();
+    private List<Vertex> existingVertices = new ArrayList<>();
     private Random generator = new Random();
 
     public void generateRoot() {
         this.rSupp = Constants.R_SUPP;
-        Vertex proximalEnd = new Vertex(0.0, Constants.R_SUPP); // proximal end of a root segment is a point on a circle of radius r_supp
+        Vertex proximalEnd = new Vertex(0, 0.0, Constants.R_SUPP); // proximal end of a root segment is a point on a circle of radius r_supp
+        existingVertices.add(proximalEnd);
         Vertex distalEnd = getNewNode(); // distal end is any point within a r_supp circle
+        existingVertices.add(distalEnd);
         double length = Math.sqrt(Math.pow(distalEnd.getX() - proximalEnd.getX(), 2) + Math.pow(distalEnd.getY() - proximalEnd.getY(), 2));
         Double r_root = getRadius(length, Constants.Q_TERM);
-        Segment rootSegment = new Segment(null, null, null, r_root, length, proximalEnd, distalEnd, Constants.Q_TERM, 1, 1);
+        Segment rootSegment = new Segment(-1, -1, -1, r_root, length, proximalEnd, distalEnd, Constants.Q_TERM, 1, 1);
         existingSegments.put(0, rootSegment);
         this.kTot++;
         this.kTerm++;
     }
 
-    public void stretchCoordinates() {
+    public void stretchCoordinates(double radScalingFactor) {
         for (Segment segment : existingSegments.values()) {
-            segment.getTo().setX(segment.getTo().getX() * this.rSupp); // scale x-coordinate
-            segment.getTo().setY(segment.getTo().getY() * this.rSupp); // scale y-coordinate
-            segment.setLength(segment.getLength() * this.rSupp); // increase length
+            segment.getTo().setX(segment.getTo().getX() * radScalingFactor); // scale x-coordinate
+            segment.getTo().setY(segment.getTo().getY() * radScalingFactor); // scale y-coordinate
+            segment.setLength(segment.getLength() * radScalingFactor); // increase length
             segment.setRadius(getRadius(segment.getLength(), segment.getQi())); // increase radius correspondingly
         }
     }
@@ -47,11 +50,13 @@ public class VascularTree {
     public Vertex getNewNode() {
         double x_distal = this.rSupp * Math.cos(generator.nextDouble());
         double y_distal = this.rSupp * Math.sin(generator.nextDouble());
-        return new Vertex(x_distal, y_distal);
+        return new Vertex(existingVertices.size(), x_distal, y_distal);
     }
 
-    public void updateRsupp() {
-        this.rSupp = Math.sqrt((this.kTot + 1) * Constants.A_PERF / (Constants.N_TOTAL * Math.PI));
+    public double updateRsupp() {
+        double rSuppPrev = rSupp;
+        rSupp = Math.sqrt((this.kTot + 1) * Constants.A_PERF / (Constants.N_TOTAL * Math.PI));
+        return rSupp / rSuppPrev;
     }
 
     public Vertex generateNewVertex() {
@@ -110,22 +115,26 @@ public class VascularTree {
     public List<Segment> getPossibleBifurcations(Vertex newNode) {
         List<Segment> possibleSegments = new ArrayList<>();
         for (Map.Entry<Integer, Segment> existingSegment : existingSegments.entrySet()) {
-            Vertex bifVertex = new Vertex(existingSegment.getValue().getFrom().getX() + (existingSegment.getValue().getTo().getX() - existingSegment.getValue().getFrom().getX()) / 2,
-                    existingSegment.getValue().getFrom().getY() + (existingSegment.getValue().getFrom().getY() - existingSegment.getValue().getTo().getY()) / 2);
+            Vertex bifVertex = new Vertex(existingVertices.size() + 1, (existingSegment.getValue().getFrom().getX() + existingSegment.getValue().getTo().getX()) / 2,
+                    (existingSegment.getValue().getTo().getY() + existingSegment.getValue().getFrom().getY()) / 2);
             Line2D lineNew = new Line2D.Double(newNode.getX(), newNode.getY(), bifVertex.getX(), bifVertex.getY());
             Line2D existingLine = new Line2D.Double(existingSegment.getValue().getFrom().getX(), existingSegment.getValue().getFrom().getY(),
                     existingSegment.getValue().getTo().getX(), existingSegment.getValue().getTo().getY());
             if (!lineNew.intersectsLine(existingLine)) { // leave only segments which don't intersect with existing ones
+                double newLen = Math.sqrt(Math.pow(newNode.getX() - bifVertex.getX(), 2) + Math.pow(newNode.getY() - bifVertex.getY(), 2));
+
                 Segment newSegment = new Segment();
                 newSegment.setFrom(bifVertex);
                 newSegment.setTo(newNode);
                 newSegment.setParentIndex(existingSegment.getKey());
-                newSegment.setBettaLeft(1);
-                newSegment.setBettaRight(1);
                 newSegment.setQi(Constants.Q_TERM);
-                double newLen = Math.sqrt(Math.pow(newNode.getX() - bifVertex.getX(), 2) + Math.pow(newNode.getY() - bifVertex.getY(), 2));
                 newSegment.setLength(newLen);
                 newSegment.setRadius(getRadius(newLen, Constants.Q_TERM));
+                newSegment.setBettaLeft(1);
+                newSegment.setBettaRight(1);
+                newSegment.setLeftIndex(-1);
+                newSegment.setRightIndex(-1);
+
                 possibleSegments.add(newSegment);
             }
         }
@@ -152,7 +161,7 @@ public class VascularTree {
             }
             parentSegment.setRadius(balancedRadius);
             currSegment = parentSegment;
-            if (Objects.isNull(currSegment.getParentIndex())) {
+            if (currSegment.getParentIndex() == -1) {
                 rootReached = true;
             }
         }
@@ -161,11 +170,12 @@ public class VascularTree {
     // split old segment by bifurcation node - remove old segment and insert 2 new, update indices
     private void updateNodeIndicesAfterInsert(Segment inew) {
         int ibifIndex = inew.getParentIndex();
-        int inewIndex = existingSegments.size(); // new segment is the last
-        int iconIndex = existingSegments.size() + 1;
+        int inewIndex = existingSegments.size() - 1; // new segment is the last
+        int iconIndex = existingSegments.size();
         Segment ibif = existingSegments.get(ibifIndex);
         boolean isLeftChild = inew.getTo().getX() > inew.getFrom().getX();
         double iconRadius = getRadius(ibif.getLength() / 2, ibif.getQi()); // recalculate the radius when lenght gets twice shorter
+
         Segment icon = new Segment(ibifIndex,
                 isLeftChild ? inewIndex : ibif.getLeftIndex(),
                 isLeftChild ? ibif.getRightIndex() : inewIndex,
@@ -174,8 +184,9 @@ public class VascularTree {
                 inew.getFrom(),
                 ibif.getTo(),
                 ibif.getQi(),
-                existingSegments.get(ibif.getLeftIndex()).getRadius() / iconRadius,
-                existingSegments.get(ibif.getRightIndex()).getRadius() / iconRadius);
+                ibif.getLeftIndex() != -1 ? existingSegments.get(ibif.getLeftIndex()).getRadius() / iconRadius : 1,
+                ibif.getRightIndex() != -1 ? existingSegments.get(ibif.getRightIndex()).getRadius() / iconRadius : 1);
+
         ibif.setTo(inew.getFrom()); // qi, rad, bettaL, bettaR
         ibif.setLength(ibif.getLength() / 2);
         ibif.setLeftIndex(isLeftChild ? iconIndex : inewIndex);
@@ -194,16 +205,18 @@ public class VascularTree {
     // from possible segments pick the one with minimum volume and assign label to it
     public Pair<Integer, Segment> pickNewSegment(List<Segment> possibleSegments) {
         double min = Double.MAX_VALUE;
-        Segment targetSegment = null;
+        Segment targetSegment  = new Segment();
         for (Segment segment : possibleSegments) {
             double segmentVolume = targetFunction(segment);
             if (segmentVolume < min) {
                 min = segmentVolume;
                 targetSegment = segment;
+                System.out.println();
             }
         }
-        int targetIndex = existingSegments.size() + 1;
+        int targetIndex = existingSegments.size();
         existingSegments.put(targetIndex, targetSegment);
+        existingVertices.add(targetSegment.getFrom());
         updateNodeIndicesAfterInsert(targetSegment);
         return new Pair<>(targetIndex, targetSegment);
     }

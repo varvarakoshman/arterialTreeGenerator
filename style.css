@@ -1,0 +1,23 @@
+graph {
+	fill-color: #FDFCF3;
+}
+
+node {
+	size: 3px, 3px;
+	shape: circle;
+	fill-color: #4682B4;
+	stroke-mode: plain;
+	stroke-color: black;
+        text-alignment: above;
+        text-size: 10;
+        text-style: bold-italic;
+}
+
+node:clicked {
+	fill-color: red;
+}
+
+edge {
+        shape: polyline;
+        text-alignment: above;
+}

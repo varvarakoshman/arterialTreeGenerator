@@ -8,6 +8,7 @@ import lombok.Setter;
 @Setter
 @AllArgsConstructor
 public class Vertex {
+    private int id;
     private double x;
     private double y;
 }

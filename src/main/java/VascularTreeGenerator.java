@@ -12,20 +12,27 @@ public class VascularTreeGenerator {
     public static void main(String[] args) {
         VascularTree vascularTree = new VascularTree();
         vascularTree.generateRoot(); // generate root segment
+        List<Segment> possibleSegments = new ArrayList<>();
         for (int i = 0; i < Constants.N_TERM; i++) {
-            vascularTree.updateRsupp(); // increase radius for new generations
-            vascularTree.stretchCoordinates();
+            double radScalingFactor = vascularTree.updateRsupp();// increase radius for new generations
+            vascularTree.stretchCoordinates(radScalingFactor);
             // generate new segment that implies distance condition
             boolean conditionsMet = false;
-            Vertex newNode = null;
+            Vertex newNode;
             while (!conditionsMet) {
                 newNode = vascularTree.generateNewVertex();
-                conditionsMet = newNode != null;
+                if (newNode != null) {
+                    possibleSegments = vascularTree.getPossibleBifurcations(newNode); // connect new segment to each existing segment
+                    if (!possibleSegments.isEmpty()){
+                        vascularTree.getExistingVertices().add(newNode);
+                        conditionsMet = true;
+                    }
+                }
             }
-            List<Segment> possibleSegments = vascularTree.getPossibleBifurcations(newNode); // connect new segment to each existing segment
             Pair<Integer, Segment> bifSegment = vascularTree.pickNewSegment(possibleSegments); // pick an optimal segment to bifurcate
             vascularTree.scaleTree(bifSegment); // update bifurcation rations in a tree
         }
-//        Visualizer.drawTree(vascularTree.getExistingSegments());
+        System.out.println("aaa");
+        Visualizer.drawTree(vascularTree);
     }
 }
