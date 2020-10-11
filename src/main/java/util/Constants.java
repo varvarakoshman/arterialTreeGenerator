@@ -2,7 +2,7 @@ package util;
 
 public class Constants {
 
-    public static final int N_TERM = 30; // # of terminal segments
+    public static final int N_TERM = 8; // # of terminal segments
     public static final int N_TOTAL = 2 * N_TERM - 1; // # of total segments
     public static final int N_TOSS = 10;
     public static final double R_PERF = 0.05; // radius of a perfusion area in m

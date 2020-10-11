@@ -59,6 +59,12 @@ public class VascularTree {
         return rSupp / rSuppPrev;
     }
 
+    public void addValidVertex(Vertex newNode) {
+        existingVertices.add(newNode);
+        kTot++;
+        kTerm++;
+    }
+
     public Vertex generateNewVertex() {
         Vertex validVertex = null;
         boolean success = false;
@@ -71,8 +77,6 @@ public class VascularTree {
             }
             dThersh = dThersh * 0.9;
         }
-        this.kTot++;
-        this.kTerm++;
         return validVertex;
     }
 
@@ -142,19 +146,20 @@ public class VascularTree {
     }
 
     public void scaleTree(Pair<Integer, Segment> bifSegment) {
-        boolean rootReached = false;
+        boolean rootReached = bifSegment.getValue().getParentIndex() == -1;
         int currIndex = bifSegment.getKey();
         Segment currSegment = bifSegment.getValue();
         while (!rootReached) {
             Segment parentSegment = existingSegments.get(currSegment.getParentIndex());
+            Segment rightChild = existingSegments.get(parentSegment.getRightIndex());
+            Segment leftChild = existingSegments.get(parentSegment.getLeftIndex());
+            parentSegment.setQi(rightChild.getQi() + leftChild.getQi());
             double balancedRadius;
             if (Objects.equals(parentSegment.getLeftIndex(), currIndex)) {
-                Segment rightChild = existingSegments.get(parentSegment.getRightIndex());
                 balancedRadius = getBalancedRadius(currSegment.getRadius(), rightChild.getRadius());
                 parentSegment.setBettaLeft(currSegment.getRadius() / balancedRadius);
                 parentSegment.setBettaRight(rightChild.getRadius() / balancedRadius);
             } else {
-                Segment leftChild = existingSegments.get(parentSegment.getLeftIndex());
                 balancedRadius = getBalancedRadius(currSegment.getRadius(), leftChild.getRadius());
                 parentSegment.setBettaRight(currSegment.getRadius() / balancedRadius);
                 parentSegment.setBettaLeft(leftChild.getRadius() / balancedRadius);
@@ -168,29 +173,29 @@ public class VascularTree {
     }
 
     // split old segment by bifurcation node - remove old segment and insert 2 new, update indices
-    private void updateNodeIndicesAfterInsert(Segment inew) {
+    private Pair<Integer, Segment> updateNodeIndicesAfterInsert(Segment inew) {
         int ibifIndex = inew.getParentIndex();
         int inewIndex = existingSegments.size() - 1; // new segment is the last
         int iconIndex = existingSegments.size();
         Segment ibif = existingSegments.get(ibifIndex);
         boolean isLeftChild = inew.getTo().getX() > inew.getFrom().getX();
-        double iconRadius = getRadius(ibif.getLength() / 2, ibif.getQi()); // recalculate the radius when lenght gets twice shorter
+//        double iconRadius = getRadius(ibif.getLength() / 2, ibif.getQi()); // recalculate the radius when length gets twice shorter
 
         Segment icon = new Segment(ibifIndex,
-                isLeftChild ? inewIndex : ibif.getLeftIndex(),
-                isLeftChild ? ibif.getRightIndex() : inewIndex,
-                iconRadius,
+                ibif.getLeftIndex(),
+                ibif.getRightIndex(),
+                ibif.getRadius(),
                 ibif.getLength() / 2,
                 inew.getFrom(),
                 ibif.getTo(),
                 ibif.getQi(),
-                ibif.getLeftIndex() != -1 ? existingSegments.get(ibif.getLeftIndex()).getRadius() / iconRadius : 1,
-                ibif.getRightIndex() != -1 ? existingSegments.get(ibif.getRightIndex()).getRadius() / iconRadius : 1);
+                ibif.getLeftIndex() != -1 ? existingSegments.get(ibif.getLeftIndex()).getRadius() / ibif.getRadius() : 1,
+                ibif.getRightIndex() != -1 ? existingSegments.get(ibif.getRightIndex()).getRadius() / ibif.getRadius() : 1);
 
         ibif.setTo(inew.getFrom()); // qi, rad, bettaL, bettaR
         ibif.setLength(ibif.getLength() / 2);
-        ibif.setLeftIndex(isLeftChild ? iconIndex : inewIndex);
-        ibif.setRightIndex(isLeftChild ? inewIndex : iconIndex);
+        ibif.setLeftIndex(isLeftChild ? inewIndex : iconIndex);
+        ibif.setRightIndex(isLeftChild ? iconIndex : inewIndex);
         ibif.setQi(ibif.getQi() + inew.getQi());
         double balancedRadius = getBalancedRadius(ibif.getRadius(), inew.getRadius());
         ibif.setRadius(balancedRadius);
@@ -200,25 +205,24 @@ public class VascularTree {
         ibif.setBettaRight(bettaRight);
         existingSegments.put(iconIndex, icon);
         this.kTot++;
+        return new Pair<>(ibifIndex, ibif);
     }
 
     // from possible segments pick the one with minimum volume and assign label to it
     public Pair<Integer, Segment> pickNewSegment(List<Segment> possibleSegments) {
         double min = Double.MAX_VALUE;
-        Segment targetSegment  = new Segment();
+        Segment targetSegment = new Segment();
         for (Segment segment : possibleSegments) {
             double segmentVolume = targetFunction(segment);
             if (segmentVolume < min) {
                 min = segmentVolume;
                 targetSegment = segment;
-                System.out.println();
             }
         }
         int targetIndex = existingSegments.size();
         existingSegments.put(targetIndex, targetSegment);
         existingVertices.add(targetSegment.getFrom());
-        updateNodeIndicesAfterInsert(targetSegment);
-        return new Pair<>(targetIndex, targetSegment);
+        return updateNodeIndicesAfterInsert(targetSegment);
     }
 
     // target function is proportional to volume of a segment
