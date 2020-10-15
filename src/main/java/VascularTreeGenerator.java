@@ -36,6 +36,9 @@ public class VascularTreeGenerator {
             vascularTree.scaleTree(bifSegment); // update bifurcation rations in a tree
         }
         testResultTree(vascularTree);
+        vascularTree.computeX0();
+        PermeabilityTensorComputer permeabilityTensorComputer  = new PermeabilityTensorComputer(vascularTree);
+//        permeabilityTensorComputer.computeKtoFiles();
         Visualizer.drawTree(vascularTree);
     }
 

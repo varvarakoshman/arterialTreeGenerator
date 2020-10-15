@@ -8,6 +8,7 @@ import util.Constants;
 
 import java.awt.geom.Line2D;
 import java.util.*;
+import java.util.stream.Collectors;
 
 @Setter
 @Getter
@@ -164,13 +165,40 @@ public class VascularTree {
                 parentSegment.setBettaRight(currSegment.getRadius() / balancedRadius);
                 parentSegment.setBettaLeft(leftChild.getRadius() / balancedRadius);
             }
-            parentSegment.setRadius(balancedRadius);
+            if (balancedRadius > parentSegment.getRadius()) {
+                parentSegment.setRadius(balancedRadius);
+            }
+//            parentSegment.setRadius(balancedRadius);
             currSegment = parentSegment;
             if (currSegment.getParentIndex() == -1) {
                 rootReached = true;
+                balanceRoot();
             }
         }
+//        checkConditions();
     }
+
+    private void balanceRoot() {
+        List<Double> childRadii = existingSegments.values().stream()
+                .filter(seg -> seg.getFrom().getId() == 0)
+                .map(Segment::getRadius)
+                .collect(Collectors.toList());
+        if (childRadii.size() == 2) { // root has 2 children
+            existingSegments.get(0).setRadius(getBalancedRadius(childRadii.get(0), childRadii.get(1)));
+        } else { // root may have only 1 child - rebalance anyway
+            existingSegments.get(0).setRadius(getBalancedRadius(childRadii.get(0), 0));
+        }
+    }
+
+//    private void checkConditions() {
+//        existingSegments.forEach((id, seg) -> {
+//            if (seg.getLeftIndex() != -1 && seg.getRightIndex() != -1) {
+//                System.out.println("id : " + id + " expected= " + Math.pow(Math.pow(existingSegments.get(seg.getLeftIndex()).getRadius(),
+//                        Constants.GAMMA) + Math.pow(existingSegments.get(seg.getRightIndex()).getRadius(), Constants.GAMMA), 1 / Constants.GAMMA) + " actual= " + seg.getRadius());
+//            }
+//        });
+//        System.out.println("=====\n");
+//    }
 
     // split old segment by bifurcation node - remove old segment and insert 2 new, update indices
     private Pair<Integer, Segment> updateNodeIndicesAfterInsert(Segment inew) {
@@ -226,11 +254,31 @@ public class VascularTree {
     }
 
     // target function is proportional to volume of a segment
-    private double targetFunction(Segment segment) {
+    public double targetFunction(Segment segment) {
         return Math.pow(segment.getLength(), Constants.MU) * Math.pow(segment.getRadius(), Constants.LAMBDA);
     }
 
     private double getBalancedRadius(double firstRadius, double secondRadius) {
         return Math.pow(Math.pow(firstRadius, Constants.GAMMA) + Math.pow(secondRadius, Constants.GAMMA), 1 / Constants.GAMMA);
+    }
+
+    public void computeX0(){
+        double dn =  existingSegments.values().stream()
+                .filter(seg -> seg.getLeftIndex() == -1 && seg.getRightIndex() == -1)
+                .findFirst().get().getRadius() * 2;
+        existingSegments.values().stream()
+                .filter(seg -> seg.getLeftIndex() == -1 && seg.getRightIndex() == -1)
+                .collect(Collectors.toList()).forEach(seg -> seg.getTo().setX0(1)); // x0 = 1 for terminals
+        List<Segment> bifurcSegms = existingSegments.values().stream()
+                .filter(seg -> seg.getLeftIndex() != -1 && seg.getRightIndex() != -1)
+                .collect(Collectors.toList());
+        for (Segment bifurcSegm : bifurcSegms) {
+            double d0 = bifurcSegm.getRadius() * 2;
+            double d1 = existingSegments.get(bifurcSegm.getLeftIndex()).getRadius() * 2;
+            double d2 = existingSegments.get(bifurcSegm.getRightIndex()).getRadius() * 2;
+            Double [] temp = {d0, d1, d2};
+            Arrays.sort(temp, Collections.reverseOrder());
+            bifurcSegm.getTo().setX0(-Math.pow((temp[0] + temp[1]) / 2 * dn, 1/Constants.GAMMA));
+        }
     }
 }
